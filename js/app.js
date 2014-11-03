@@ -165,6 +165,8 @@ jQuery(function ($) {
 		toggle: function (e) {
 			var i = this.indexFromEl(e.target);
 			this.todos[i].completed = !this.todos[i].completed;
+
+			github.markClosed( this.todos[i] );
 			this.render();
 		},
 		edit: function (e) {
@@ -207,5 +209,76 @@ jQuery(function ($) {
 		}
 	};
 
+	var github =  {
+		issues: [],
+		storedIssues: function (issues) {
+			util.store('storedIssues', issues);
+		},
+
+		gitIssues: function () {
+			$.ajax({
+					url: "https://api.github.com/issues",
+					crossDomain: true,
+					headers: {
+						"Authorization" : 'token 4bce795b912a059bd27fc22bbfc62fb8a1347d67'
+					},
+					type: "GET",
+					dataType: 'json',
+					async: false,
+				success: function(data) {
+					for(var i = 0; i < data.length; i++) {
+						github.issues.push({id: data[i].id, title: data[i].title, state: data[i].state});
+					}
+					github.storeIssues(data);
+				}
+
+			});
+		},
+		storeIssues: function(data) {
+			for(var i = 0; i < data.length; i++) {
+				if (window.localStorage['todos-jquery'].indexOf(data[i].id) < 0) {
+					App.todos.push({
+						id: parseInt(data[i].id),
+						title: data[i].title,
+						completed: data[i].state
+					});
+					App.render();
+				}
+			}
+		},
+		markClosed: function(from_todo) {
+			$.ajax({
+				url: 'https://api.github.com/issues',
+				crossDomain: true,
+				headers: {
+					"Authorization" : 'token 4bce795b912a059bd27fc22bbfc62fb8a1347d67'
+				},
+				type: "GET",
+				dataType: 'json',
+				async: false,
+				success: function(data) {
+					for(var i = 0; i < data.length; i++) {
+						if (parseInt(data[i].id) == from_todo.id)
+							github.sendToGit(data[i]);
+					}
+				}
+			})
+		},
+		sendToGit: function(data) {
+			data.state = "closed";
+			$.ajax({
+				url: data.url,
+				crossDomain: true,
+				headers: {
+					"Authorization" : 'token 4bce795b912a059bd27fc22bbfc62fb8a1347d67'
+				},
+				type: "PUT",
+				contentType: "application/json",
+				data: JSON.stringify(data),
+				async: false
+			});
+		}
+	};
 	App.init();
+	github.gitIssues();
 });
